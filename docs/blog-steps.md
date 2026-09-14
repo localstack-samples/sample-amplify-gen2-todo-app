@@ -69,14 +69,17 @@ so that origin has to be on LocalStack's CORS allow-list. `lstk` forwards `LOCAL
 variables to the container:
 
 ```
-$ LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 lstk start
+$ LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 LOCALSTACK_LAMBDA_IGNORE_ARCHITECTURE=1 lstk start
 Starting LocalStack...
 ✔︎ LocalStack is running (containerId: 1fe91bfb2e36)
 • Endpoint: localhost.localstack.cloud:4566
 ```
 
-Without the variable, the browser's preflight to Cognito fails with
-"No 'Access-Control-Allow-Origin' header" and the page shows a network error.
+Without the CORS variable, the browser's preflight to Cognito fails with
+"No 'Access-Control-Allow-Origin' header" and the page shows a network error. Amplify pins its
+`CDKBucketDeployment` helper Lambda to `arm64`; `LAMBDA_IGNORE_ARCHITECTURE=1` lets LocalStack run
+it natively on x86_64 hosts, where it would otherwise fail with `Runtime.InvalidEntrypoint` and the
+data stack would time out.
 
 ## 3. Write the AWS profile
 

@@ -63,7 +63,7 @@ make install
 
 ## Deployment
 
-Start LocalStack. The Makefile passes `LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173` so the browser can call Cognito and AppSync from the Vite dev server's origin:
+Start LocalStack. The Makefile passes two settings: `LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173` so the browser can call Cognito and AppSync from the Vite dev server's origin, and `LOCALSTACK_LAMBDA_IGNORE_ARCHITECTURE=1` because Amplify pins one of its CloudFormation helper functions to `arm64`, which this setting runs natively on x86_64 hosts as well:
 
 ```shell
 export LOCALSTACK_AUTH_TOKEN=<your-auth-token>

@@ -26,10 +26,12 @@ install:
 	@echo "Dependencies installed successfully."
 
 ## Start LocalStack, allowing the Vite dev server's origin for browser requests
+# LAMBDA_IGNORE_ARCHITECTURE: Amplify pins one of its CloudFormation helper functions to arm64;
+# this lets LocalStack run it natively on x86_64 hosts as well.
 start:
 	@echo "Starting LocalStack..."
 	@test -n "${LOCALSTACK_AUTH_TOKEN}" || (echo "LOCALSTACK_AUTH_TOKEN is not set. Find your token at https://app.localstack.cloud/workspace/auth-token"; exit 1)
-	@LOCALSTACK_AUTH_TOKEN=$(LOCALSTACK_AUTH_TOKEN) LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 lstk start --non-interactive
+	@LOCALSTACK_AUTH_TOKEN=$(LOCALSTACK_AUTH_TOKEN) LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 LOCALSTACK_LAMBDA_IGNORE_ARCHITECTURE=1 lstk start --non-interactive
 	@echo "LocalStack started successfully."
 
 ## Write the `localstack` AWS profile that ampx deploys with (one-time)
@@ -49,7 +51,9 @@ deploy:
 	@echo "Deploying the Amplify backend..."
 	@$(MAKE) --no-print-directory bootstrap
 	node scripts/reset-cdk-cache.mjs
+	@rm -f amplify_outputs.json
 	npx ampx sandbox --once --identifier local --profile localstack
+	@test -f amplify_outputs.json || { echo "Deployment failed: ampx did not write amplify_outputs.json"; exit 1; }
 	@echo "Backend deployed successfully."
 
 ## Run the Amplify sandbox in watch mode (redeploys on every change under amplify/)
