@@ -30,3 +30,7 @@ amplifyconfiguration*
 
 # local tooling
 .playwright-mcp
+
+# make logs
+logs.txt
+ci-lstk.toml

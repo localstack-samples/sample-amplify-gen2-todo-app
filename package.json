@@ -37,5 +37,10 @@
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vite": "^8.3.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/localstack-samples/sample-amplify-gen2-todo-app.git"
+  },
+  "license": "Apache-2.0"
 }
