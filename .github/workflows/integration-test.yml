@@ -49,6 +49,8 @@ jobs:
         env:
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
           LOCALSTACK_DEBUG: 1
+          # Amplify pins its CDKBucketDeployment helper function to arm64; run it natively on x86_64.
+          LOCALSTACK_LAMBDA_IGNORE_ARCHITECTURE: 1
         run: |
           cat > ci-lstk.toml <<EOF
           [[containers]]
