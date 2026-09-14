@@ -1,0 +1,17 @@
+# LocalStack configuration for this sample, used by `npm run localstack:start`
+# (equivalent to `lstk --config lstk.toml start --type aws`).
+#
+# Amplify Gen 2 support currently ships in the `dev` (nightly) image of
+# LocalStack for AWS. Switch `tag` to a stable release once it lands there.
+
+[[containers]]
+type = "aws"
+tag  = "dev"
+port = "4566"
+env  = ["amplify"]
+
+[env.amplify]
+# The Vite dev server runs on http://localhost:5173. Browsers send CORS
+# preflights to LocalStack for the Cognito and AppSync calls, and 5173 is not
+# in LocalStack's default allow-list.
+EXTRA_CORS_ALLOWED_ORIGINS = "http://localhost:5173"
