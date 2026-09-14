@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { generateClient } from 'aws-amplify/data';
-import type { AuthUser } from 'aws-amplify/auth';
 import type { Schema } from '../amplify/data/resource';
 import outputs from '../amplify_outputs.json';
 import { LOCALSTACK_ENDPOINT } from './amplify-config';
 
+// The default authorization mode comes from amplify_outputs.json: identityPool,
+// i.e. guest credentials from Cognito, SigV4-signed requests to AppSync.
 const client = generateClient<Schema>();
 
 type Todo = Schema['Todo']['type'];
-type TodoStats = Schema['TodoStats']['type'];
-
-type Props = {
-  signOut?: () => void;
-  user?: AuthUser;
-};
 
 const graphqlHost = new URL(outputs.data.url).host;
 const isLocal = Boolean(LOCALSTACK_ENDPOINT) || graphqlHost.includes('localstack');
@@ -22,17 +18,18 @@ function errorText(errors: { message: string }[] | undefined, fallback: string) 
   return errors?.map((e) => e.message).join('; ') || fallback;
 }
 
-export default function App({ signOut, user }: Props) {
+function sortNewestFirst(todos: Todo[]) {
+  return [...todos].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export default function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<TodoStats | null>(null);
-  const [statsBusy, setStatsBusy] = useState(false);
-
-  const email = user?.signInDetails?.loginId ?? user?.username ?? '';
+  const [identityId, setIdentityId] = useState<string | null>(null);
 
   const loadTodos = useCallback(async () => {
     const { data, errors } = await client.models.Todo.list();
@@ -40,31 +37,22 @@ export default function App({ signOut, user }: Props) {
       setError(errorText(errors, "Couldn't load todos."));
       return;
     }
-    setTodos([...data].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)));
-  }, []);
-
-  const loadStats = useCallback(async () => {
-    const { data, errors } = await client.queries.todoStats();
-    setStatsBusy(false);
-    if (errors || !data) {
-      setError(errorText(errors, "Couldn't compute stats."));
-      return;
-    }
-    setStats(data);
+    setTodos(sortNewestFirst(data));
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [{ data: list, errors: listErrors }, { data: computed, errors: statsErrors }] =
-        await Promise.all([client.models.Todo.list(), client.queries.todoStats()]);
+      // Guest credentials: Cognito hands out an identity id and temporary keys.
+      const session = await fetchAuthSession();
+      const { data, errors } = await client.models.Todo.list();
       if (cancelled) return;
-      if (listErrors || statsErrors) {
-        setError(errorText([...(listErrors ?? []), ...(statsErrors ?? [])], "Couldn't load your data."));
-      }
-      if (list) setTodos([...list].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)));
-      if (computed) setStats(computed);
-    })();
+      setIdentityId(session.identityId ?? null);
+      if (errors) setError(errorText(errors, "Couldn't load todos."));
+      if (data) setTodos(sortNewestFirst(data));
+    })().catch((e: unknown) => {
+      if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+    });
     return () => {
       cancelled = true;
     };
@@ -83,7 +71,7 @@ export default function App({ signOut, user }: Props) {
       return;
     }
     setDraft('');
-    await Promise.all([loadTodos(), loadStats()]);
+    await loadTodos();
   }
 
   function startEdit(todo: Todo) {
@@ -101,7 +89,7 @@ export default function App({ signOut, user }: Props) {
       return;
     }
     setEditingId(null);
-    await Promise.all([loadTodos(), loadStats()]);
+    await loadTodos();
   }
 
   async function removeTodo(id: string) {
@@ -111,7 +99,7 @@ export default function App({ signOut, user }: Props) {
       setError(errorText(errors, "Couldn't delete the todo."));
       return;
     }
-    await Promise.all([loadTodos(), loadStats()]);
+    await loadTodos();
   }
 
   return (
@@ -123,19 +111,14 @@ export default function App({ signOut, user }: Props) {
           <span className="eyebrow">Amplify Gen 2 · {isLocal ? 'LocalStack' : 'AWS'}</span>
         </div>
         <div className="session">
-          <span className="who" title={email}>
-            {email}
-          </span>
-          <button type="button" className="ghost" onClick={signOut}>
-            Sign out
-          </button>
+          <span className="who">guest session</span>
         </div>
       </header>
 
       <main className="layout">
         <section className="todos" aria-labelledby="todos-heading">
           <h2 id="todos-heading" className="visually-hidden">
-            Your todos
+            Todos
           </h2>
           <form className="composer" onSubmit={addTodo}>
             <input
@@ -225,51 +208,19 @@ export default function App({ signOut, user }: Props) {
             <dl>
               <dt>AppSync API</dt>
               <dd>{graphqlHost}</dd>
-              <dt>User pool</dt>
-              <dd>{outputs.auth.user_pool_id}</dd>
+              <dt>Authorization</dt>
+              <dd>{outputs.data.default_authorization_type} (guest via identity pool)</dd>
+              <dt>Identity pool</dt>
+              <dd>{outputs.auth.identity_pool_id}</dd>
+              <dt>Your guest identity</dt>
+              <dd>{identityId ?? '…'}</dd>
               <dt>Region</dt>
               <dd>{outputs.auth.aws_region}</dd>
-              <dt>Lambda</dt>
-              <dd>{stats?.functionName ?? '…'}</dd>
-              <dt>Endpoint the Lambda used (AWS_ENDPOINT_URL)</dt>
-              <dd>{stats ? stats.endpoint ?? 'not set (AWS default)' : '…'}</dd>
             </dl>
-          </section>
-
-          <section className="card" aria-labelledby="stats-heading">
-            <div className="card-head">
-              <h2 id="stats-heading">Your stats</h2>
-              <button
-                type="button"
-                className="ghost small"
-                onClick={() => {
-                  setStatsBusy(true);
-                  void loadStats();
-                }}
-                disabled={statsBusy}
-              >
-                {statsBusy ? 'Computing…' : 'Recompute'}
-              </button>
-            </div>
-            <p className="hint">Computed by the todo-stats Lambda, which scans your rows in the Todo table.</p>
-            {stats ? (
-              <dl className="stats">
-                <dt>Todos</dt>
-                <dd>{stats.total}</dd>
-                <dt>Characters</dt>
-                <dd>{stats.totalCharacters}</dd>
-                <dt>Longest</dt>
-                <dd className="wrap">{stats.longest ?? '—'}</dd>
-                <dt>Latest</dt>
-                <dd>{stats.latestCreatedAt ? new Date(stats.latestCreatedAt).toLocaleString() : '—'}</dd>
-                <dt>Owner</dt>
-                <dd className="wrap">{stats.owner ?? '—'}</dd>
-                <dt>Computed</dt>
-                <dd>{new Date(stats.computedAt).toLocaleTimeString()}</dd>
-              </dl>
-            ) : (
-              <p className="hint">Waiting for the first response…</p>
-            )}
+            <p className="hint">
+              Every request is signed with temporary credentials that Cognito issued to this browser
+              session.
+            </p>
           </section>
         </aside>
       </main>

@@ -60,29 +60,6 @@ input {
   white-space: nowrap;
 }
 
-/* ---------- Amplify Authenticator theming ---------- */
-[data-amplify-authenticator] {
-  --amplify-fonts-default-variable: var(--font-body);
-  --amplify-fonts-default-static: var(--font-body);
-  --amplify-colors-brand-primary-80: var(--violet);
-  --amplify-colors-brand-primary-90: var(--violet-ink);
-  --amplify-colors-brand-primary-100: var(--violet-ink);
-  --amplify-colors-brand-primary-10: var(--violet-soft);
-  --amplify-colors-brand-primary-20: var(--violet-soft);
-  --amplify-components-button-primary-background-color: var(--violet);
-  --amplify-components-button-primary-hover-background-color: var(--violet-ink);
-  --amplify-components-button-link-color: var(--violet-ink);
-  --amplify-components-tabs-item-active-color: var(--violet-ink);
-  --amplify-components-tabs-item-active-border-color: var(--violet);
-  --amplify-components-fieldcontrol-focus-border-color: var(--violet);
-  --amplify-components-authenticator-router-border-color: var(--line);
-  --amplify-components-authenticator-router-box-shadow: var(--shadow);
-  --amplify-radii-small: 8px;
-  --amplify-radii-medium: var(--radius);
-  min-height: 100vh;
-  padding: 24px 16px;
-}
-
 /* ---------- shell ---------- */
 .shell {
   max-width: 1040px;
@@ -338,22 +315,6 @@ button:disabled {
   color: var(--amber);
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: 6px 14px;
-  margin: 0;
-  font-size: 13px;
-}
-.stats dt {
-  color: var(--muted);
-}
-.stats dd {
-  margin: 0;
-  font-family: var(--font-mono);
-  overflow-wrap: anywhere;
-}
-
 /* the "receipt": a mono readout of the live plumbing, one stacked row per fact */
 .receipt dl {
   display: grid;
@@ -373,6 +334,9 @@ button:disabled {
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.45;
+}
+.receipt .hint {
+  margin: 14px 0 0;
 }
 .receipt {
   background:

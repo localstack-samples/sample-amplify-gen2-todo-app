@@ -11,15 +11,14 @@
     "preview": "vite preview",
     "localstack:start": "lstk --config lstk.toml start --type aws --non-interactive",
     "localstack:bootstrap": "lstk cdk bootstrap aws://000000000000/us-east-1",
-    "localstack:deploy": "ampx sandbox --once --identifier local --profile localstack",
-    "localstack:sandbox": "ampx sandbox --identifier local --profile localstack",
+    "localstack:deploy": "node scripts/reset-cdk-cache.mjs && ampx sandbox --once --identifier local --profile localstack",
+    "localstack:sandbox": "node scripts/reset-cdk-cache.mjs && ampx sandbox --identifier local --profile localstack",
     "localstack:destroy": "ampx sandbox delete --identifier local --profile localstack --yes",
     "localstack:status": "lstk status",
     "localstack:logs": "lstk logs --follow",
     "localstack:stop": "lstk stop"
   },
   "dependencies": {
-    "@aws-amplify/ui-react": "^6.15.6",
     "aws-amplify": "^6.20.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
@@ -27,9 +26,6 @@
   "devDependencies": {
     "@aws-amplify/backend": "^1.25.0",
     "@aws-amplify/backend-cli": "^1.10.0",
-    "@aws-sdk/client-dynamodb": "^3.1131.0",
-    "@aws-sdk/lib-dynamodb": "^3.1131.0",
-    "@types/aws-lambda": "^8.10.163",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
