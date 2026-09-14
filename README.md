@@ -28,27 +28,16 @@ A step-by-step record of building and running it, with real command output, is i
 | AWS CDK CLI | 2.x | `npm i -g aws-cdk`; `lstk cdk` wraps it |
 | LocalStack for AWS auth token | | Cognito and AppSync need a licensed LocalStack. `lstk` prompts for login on first start. |
 
-Amplify Gen 2 support currently ships in the `dev` image of LocalStack for AWS, which is what
-[`lstk.toml`](lstk.toml) selects.
-
 ## Run it
 
 ```bash
 npm install
 
-# 1. Start LocalStack (dev image; lstk.toml also allows the Vite dev server origin).
-npm run localstack:start
+# 1. Start LocalStack, allowing the Vite dev server's origin for browser requests.
+npm run localstack:start   # LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 lstk start
 
-# 2. One-time: write the `localstack` AWS profile that ampx deploys with,
-#    and give S3 its own endpoint (CDK uploads assets with the bucket name in the hostname).
+# 2. One-time: write the `localstack` AWS profile that ampx deploys with.
 lstk setup aws
-aws configure set profile.localstack.services localstack
-cat >> ~/.aws/config <<'EOF'
-
-[services localstack]
-s3 =
-  endpoint_url = http://s3.localhost.localstack.cloud:4566
-EOF
 
 # 3. Once per container: bootstrap the CDK toolkit stack that ampx expects.
 npm run localstack:bootstrap
@@ -97,10 +86,10 @@ library and cannot be expressed in that file, so
 Vite in the `localstack` mode, which loads [`.env.localstack`](.env.localstack); plain
 `npm run dev` leaves the endpoints alone and the app talks to AWS.
 
-The deploy side uses an AWS profile rather than environment variables because CDK's asset
-publisher resolves S3 through the profile, and S3 must be addressed at
-`s3.localhost.localstack.cloud` so that bucket-in-hostname requests are recognised as S3.
-`lstk setup aws` writes the profile; the `services` section from step 2 adds the S3 endpoint.
+The deploy side uses the `localstack` AWS profile that `lstk setup aws` writes. CDK's asset
+publisher addresses S3 with the bucket name in the hostname, which LocalStack only recognises
+on `s3.localhost.localstack.cloud`, so the deploy scripts set
+`AWS_ENDPOINT_URL_S3=http://s3.localhost.localstack.cloud:4566` for `ampx`.
 
 ## Project layout
 
@@ -113,7 +102,6 @@ src/
   main.tsx                 renders the app
   App.tsx                  todos with inline edit, "where this runs" panel
   amplify-config.ts        Amplify.configure + the LocalStack endpoint toggle
-lstk.toml                  LocalStack container config used by npm run localstack:start
 .env.localstack            VITE_LOCALSTACK_ENDPOINT for `vite --mode localstack`
 ```
 
@@ -121,11 +109,11 @@ lstk.toml                  LocalStack container config used by npm run localstac
 
 | Script | What it runs |
 | --- | --- |
-| `localstack:start` | `lstk --config lstk.toml start --type aws --non-interactive` |
+| `localstack:start` | `LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 lstk start --non-interactive` |
 | `localstack:bootstrap` | `lstk cdk bootstrap aws://000000000000/us-east-1` |
-| `localstack:deploy` | `ampx sandbox --once --identifier local --profile localstack` |
-| `localstack:sandbox` | `ampx sandbox --identifier local --profile localstack` (watch mode) |
-| `localstack:destroy` | `ampx sandbox delete --identifier local --profile localstack --yes` |
+| `localstack:deploy` | `AWS_ENDPOINT_URL_S3=... ampx sandbox --once --identifier local --profile localstack` (after dropping the CDK hotswap cache) |
+| `localstack:sandbox` | `AWS_ENDPOINT_URL_S3=... ampx sandbox --identifier local --profile localstack` (watch mode) |
+| `localstack:destroy` | `AWS_ENDPOINT_URL_S3=... ampx sandbox delete --identifier local --profile localstack --yes` |
 | `localstack:status` / `localstack:logs` / `localstack:stop` | `lstk status` / `lstk logs --follow` / `lstk stop` |
 | `dev:localstack` | `vite --mode localstack` |
 | `dev`, `build`, `lint`, `preview` | the usual Vite scripts |
