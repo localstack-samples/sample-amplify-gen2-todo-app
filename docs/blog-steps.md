@@ -91,23 +91,36 @@ Starting LocalStack...
 
 ```
 $ lstk setup aws
+✔︎ Created LocalStack profile in ~/.aws
 ```
 
-This writes a `localstack` profile to `~/.aws/config` and `~/.aws/credentials`:
+This writes a `localstack` profile to `~/.aws/config` and test credentials to `~/.aws/credentials`:
 
 ```ini
 [profile localstack]
-region = us-east-1
-endpoint_url = https://localhost.localstack.cloud:4566
-services = localstack-services
-
-[services localstack-services]
-s3 =
-  endpoint_url = http://s3.localhost.localstack.cloud:4566
+region       = us-east-1
+output       = json
+endpoint_url = http://localhost.localstack.cloud:4566
 ```
 
-`ampx` deploys with `--profile localstack`. A profile, rather than `AWS_ENDPOINT_URL` variables,
-is what makes CDK's asset publisher address S3 on the virtual-host-style endpoint.
+CDK publishes assets to S3 with the bucket name in the hostname (`<bucket>.<endpoint>`). On the
+plain endpoint LocalStack cannot tell those requests are S3, so the deploy fails while publishing
+assets. Give S3 its own endpoint through the profile's `services` section:
+
+```
+$ aws configure set profile.localstack.services localstack
+$ cat >> ~/.aws/config <<'EOF'
+
+[services localstack]
+s3 =
+  endpoint_url = http://s3.localhost.localstack.cloud:4566
+EOF
+$ aws --profile localstack sts get-caller-identity --query Account --output text
+000000000000
+```
+
+`ampx` deploys with `--profile localstack`; the SDK clients inside ampx and the CDK toolkit read
+both endpoints from the profile.
 
 ## 4. Bootstrap CDK
 

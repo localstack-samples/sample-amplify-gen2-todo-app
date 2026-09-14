@@ -39,8 +39,16 @@ npm install
 # 1. Start LocalStack (dev image; lstk.toml also allows the Vite dev server origin).
 npm run localstack:start
 
-# 2. One-time: write the `localstack` AWS profile that ampx deploys with.
+# 2. One-time: write the `localstack` AWS profile that ampx deploys with,
+#    and give S3 its own endpoint (CDK uploads assets with the bucket name in the hostname).
 lstk setup aws
+aws configure set profile.localstack.services localstack
+cat >> ~/.aws/config <<'EOF'
+
+[services localstack]
+s3 =
+  endpoint_url = http://s3.localhost.localstack.cloud:4566
+EOF
 
 # 3. Once per container: bootstrap the CDK toolkit stack that ampx expects.
 npm run localstack:bootstrap
@@ -91,7 +99,8 @@ Vite in the `localstack` mode, which loads [`.env.localstack`](.env.localstack);
 
 The deploy side uses an AWS profile rather than environment variables because CDK's asset
 publisher resolves S3 through the profile, and S3 must be addressed at
-`s3.localhost.localstack.cloud`. `lstk setup aws` writes exactly that profile.
+`s3.localhost.localstack.cloud` so that bucket-in-hostname requests are recognised as S3.
+`lstk setup aws` writes the profile; the `services` section from step 2 adds the S3 endpoint.
 
 ## Project layout
 
