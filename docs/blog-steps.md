@@ -64,28 +64,19 @@ types depend on strict mode) and `"resolveJsonModule": true` (to import `amplify
 
 ## 2. Start LocalStack
 
-`lstk.toml` in the repo selects the `dev` image and allows the Vite dev server's origin, so the
-browser can call Cognito and AppSync directly:
-
-```toml
-[[containers]]
-type = "aws"
-tag  = "dev"
-port = "4566"
-env  = ["amplify"]
-
-[env.amplify]
-EXTRA_CORS_ALLOWED_ORIGINS = "http://localhost:5173"
-```
+The browser calls Cognito and AppSync on LocalStack directly from the Vite dev server's origin,
+so that origin has to be on LocalStack's CORS allow-list. `lstk` forwards `LOCALSTACK_`-prefixed
+variables to the container:
 
 ```
-$ npm run localstack:start        # lstk --config lstk.toml start --type aws --non-interactive
-✔︎ Using local image localstack/localstack-pro:dev
+$ LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 lstk start
 Starting LocalStack...
-✔︎ LocalStack is running (containerId: 9789d5bc0f02)
+✔︎ LocalStack is running (containerId: 1fe91bfb2e36)
 • Endpoint: localhost.localstack.cloud:4566
-• Web app: https://app.localstack.cloud
 ```
+
+Without the variable, the browser's preflight to Cognito fails with
+"No 'Access-Control-Allow-Origin' header" and the page shows a network error.
 
 ## 3. Write the AWS profile
 
@@ -105,22 +96,16 @@ endpoint_url = http://localhost.localstack.cloud:4566
 
 CDK publishes assets to S3 with the bucket name in the hostname (`<bucket>.<endpoint>`). On the
 plain endpoint LocalStack cannot tell those requests are S3, so the deploy fails while publishing
-assets. Give S3 its own endpoint through the profile's `services` section:
+assets. Point S3 at `s3.localhost.localstack.cloud` with the service-specific endpoint variable in
+the terminal that runs `ampx` (the npm scripts set it for you):
 
 ```
-$ aws configure set profile.localstack.services localstack
-$ cat >> ~/.aws/config <<'EOF'
-
-[services localstack]
-s3 =
-  endpoint_url = http://s3.localhost.localstack.cloud:4566
-EOF
+$ export AWS_ENDPOINT_URL_S3=http://s3.localhost.localstack.cloud:4566
 $ aws --profile localstack sts get-caller-identity --query Account --output text
 000000000000
 ```
 
-`ampx` deploys with `--profile localstack`; the SDK clients inside ampx and the CDK toolkit read
-both endpoints from the profile.
+The same override can be written into a `[services]` section of the profile instead.
 
 ## 4. Bootstrap CDK
 
