@@ -1,123 +1,187 @@
-# Amplify Gen 2 on LocalStack: a Todo app
+# Amplify Gen 2 Todo App with Cognito, AppSync and DynamoDB on LocalStack
 
-A small, complete [AWS Amplify Gen 2](https://docs.amplify.aws/) application that deploys to
-[LocalStack](https://localstack.cloud) instead of AWS. The backend is the stock `create-amplify`
-template: email-based Cognito auth and a `Todo` model that guests can create, read, update and
-delete. The frontend is a React + Vite app that lists, adds, edits and deletes todos, and shows
-which endpoints it is talking to.
+[![GitHub Actions](https://github.com/localstack-samples/sample-amplify-gen2-todo-app/actions/workflows/integration-test.yml/badge.svg)](https://github.com/localstack-samples/sample-amplify-gen2-todo-app/actions/workflows/integration-test.yml)
 
-Everything the app uses runs inside one LocalStack container: Cognito (user pool and identity
-pool), AppSync (GraphQL API and resolvers), DynamoDB (the Todo table), plus CloudFormation, S3,
-SSM, IAM and Lambda underneath, which is what `ampx` uses to deploy.
+| Key          | Value                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------- |
+| Environment  | LocalStack, AWS                                                                        |
+| Services     | Cognito, AppSync, DynamoDB, CloudFormation, S3, Lambda, SSM, IAM                       |
+| Integrations | AWS Amplify Gen 2 (`ampx`), AWS CDK, AWS SDK for JavaScript, `lstk`                    |
+| Categories   | Serverless, GraphQL, Full-stack web                                                    |
+| Level        | Beginner                                                                               |
+| Use Case     | Local development of Amplify Gen 2 apps, Sandbox dev loop                              |
+| GitHub       | [Repository link](https://github.com/localstack-samples/sample-amplify-gen2-todo-app)  |
 
-The **same code** runs against AWS: deploy an AWS sandbox with `npx ampx sandbox` and start Vite
-without the LocalStack mode.
+## Introduction
 
-![The app with a few todos and the "Where this runs" panel pointing at LocalStack](docs/screenshots/app.png)
+This sample deploys an [AWS Amplify Gen 2](https://docs.amplify.aws/) application to LocalStack instead of an AWS account. The backend is the stock `create-amplify` template: a Cognito user pool and identity pool from `defineAuth`, and a `Todo` model from `defineData` that becomes an AppSync GraphQL API backed by a DynamoDB table. Guests (visitors who have not signed in) get temporary credentials from the identity pool and can create, read, update and delete todos. The frontend is a small React + Vite app that lists, adds, edits and deletes todos and shows which endpoints it is talking to.
 
-A step-by-step record of building and running it, with real command output, is in
-[docs/blog-steps.md](docs/blog-steps.md).
+The point of the sample is the workflow. `npx ampx sandbox`, the Amplify Gen 2 developer sandbox, deploys the backend through CloudFormation to LocalStack, writes `amplify_outputs.json` with the local endpoints, and redeploys on every change under `amplify/`. The same code runs against AWS: deploy an AWS sandbox and start the frontend without the LocalStack mode.
+
+## Architecture
+
+The following diagram shows the architecture that this sample application builds and deploys:
+
+![Architecture overview](images/architecture.png)
+
+- [Cognito](https://docs.localstack.cloud/aws/services/cognito-idp/) user pool and identity pool for authentication. The app uses the identity pool's guest access to sign requests.
+- [AppSync](https://docs.localstack.cloud/aws/services/appsync/) GraphQL API with the generated `createTodo`, `getTodo`, `listTodos`, `updateTodo` and `deleteTodo` operations and their resolvers.
+- [DynamoDB](https://docs.localstack.cloud/aws/services/dynamodb/) table for the `Todo` model, created by Amplify's table manager, a [Lambda](https://docs.localstack.cloud/aws/services/lambda/) function deployed as a CloudFormation custom resource.
+- [CloudFormation](https://docs.localstack.cloud/aws/services/cloudformation/) root stack with nested stacks for the auth and data categories, deployed by the CDK toolkit embedded in `ampx`.
+- [S3](https://docs.localstack.cloud/aws/services/s3/) bucket from the CDK bootstrap for templates and assets, and [SSM](https://docs.localstack.cloud/aws/services/ssm/) parameters for Amplify's bookkeeping.
 
 ## Prerequisites
 
-| Tool | Version used here | Notes |
-| --- | --- | --- |
-| Node.js | 22.23 | Vite 8 needs Node 20.19+ or 22.12+ |
-| [lstk](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) | 1.0.1 | `npm i -g @localstack/lstk` or `brew install localstack/tap/lstk` |
-| Docker | 26 | LocalStack runs in a container |
-| AWS CDK CLI | 2.x | `npm i -g aws-cdk`; `lstk cdk` wraps it |
-| LocalStack for AWS auth token | | Cognito and AppSync need a licensed LocalStack. `lstk` prompts for login on first start. |
+- A valid [LocalStack for AWS license](https://localstack.cloud/pricing). Your license provides a [`LOCALSTACK_AUTH_TOKEN`](https://docs.localstack.cloud/aws/getting-started/auth-token/) to activate LocalStack. Cognito and AppSync require a licensed plan.
+- [`lstk` CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) 1.0 or later.
+- [Docker](https://docs.docker.com/get-docker/).
+- [Node.js](https://nodejs.org/) 22.12 or later. The frontend uses Vite 8, which needs it.
+- The [AWS CDK CLI](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) (`npm install -g aws-cdk`), which `lstk cdk` wraps.
+- [`make`](https://www.gnu.org/software/make/) for running the sample application via the provided Makefile.
 
-## Run it
+## Installation
 
-```bash
-npm install
+To run the sample application, you need to install the required dependencies.
 
-# 1. Start LocalStack, allowing the Vite dev server's origin for browser requests.
-npm run localstack:start   # LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 lstk start
+First, clone the repository:
 
-# 2. One-time: write the `localstack` AWS profile that ampx deploys with.
-lstk setup aws
-
-# 3. Once per container: bootstrap the CDK toolkit stack that ampx expects.
-npm run localstack:bootstrap
-
-# 4. Deploy the Amplify backend (auth + data). About a minute. Writes amplify_outputs.json.
-npm run localstack:deploy
-
-# 5. Run the frontend against LocalStack.
-npm run dev:localstack
+```shell
+git clone https://github.com/localstack-samples/sample-amplify-gen2-todo-app.git
 ```
 
-Open <http://localhost:5173> and add a few todos. The right-hand panel shows the AppSync host,
-the identity pool, and the guest identity Cognito issued to your browser session.
+Then, navigate to the project directory:
 
-### The dev loop
+```shell
+cd sample-amplify-gen2-todo-app
+```
 
-`npm run localstack:sandbox` runs `ampx sandbox` in watch mode: edit anything under `amplify/`
-and it redeploys the change. Keep `npm run dev:localstack` running in a second terminal for the
-frontend.
+Install the dependencies:
 
-### Look around
+```shell
+make install
+```
 
-```bash
-npm run localstack:status                      # every resource ampx created
-lstk aws dynamodb list-tables
-lstk aws dynamodb scan --table-name <Todo-...>  # your todos
+## Deployment
+
+Start LocalStack. The Makefile passes `LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173` so the browser can call Cognito and AppSync from the Vite dev server's origin:
+
+```shell
+export LOCALSTACK_AUTH_TOKEN=<your-auth-token>
+make start
+```
+
+`ampx` deploys with an AWS profile. Write the `localstack` profile once:
+
+```shell
+make setup
+```
+
+Deploy the backend. This bootstraps the CDK toolkit stack in LocalStack and runs `npx ampx sandbox --once --identifier local --profile localstack`:
+
+```shell
+make deploy
+```
+
+The output ends with the local AppSync endpoint and the generated outputs file:
+
+```shell
+✔ Deployment completed in 55.307 seconds
+AppSync API endpoint = http://localhost.localstack.cloud:4566/graphql/4f77b9c21fa740f885cfdc9594
+File written: amplify_outputs.json
+```
+
+Run the frontend against LocalStack:
+
+```shell
+make run
+```
+
+Open [http://localhost:5173](http://localhost:5173) and add a few todos. The panel on the right shows the AppSync host, the identity pool and the guest identity Cognito issued to your browser session.
+
+![The app running against LocalStack](docs/screenshots/app.png)
+
+## Testing
+
+Run the end-to-end test against the deployed backend. It obtains guest credentials from the identity pool and runs the Todo operations through AppSync with the Amplify data client, the same way the frontend does:
+
+```shell
+make test
+```
+
+```shell
+  data.url        = http://localhost.localstack.cloud:4566/graphql/4f77b9c21fa740f885cfdc9594
+  identity pool   = us-east-1:7fd216cc
+  guest identity  = us-east-1:5b1c2d3e
+  PASS  guest credentials issued
+  PASS  createTodo returns id and content
+  PASS  getTodo reads the item back
+  PASS  listTodos contains the item
+  PASS  updateTodo returns the new content
+  PASS  listTodos filter matches the new content
+  PASS  updateTodo on a missing id fails
+  PASS  deleteTodo returns the id
+  PASS  getTodo after delete returns null
+
+All checks passed
+```
+
+The [GitHub Actions workflow](.github/workflows/integration-test.yml) runs the same deployment and test on every push.
+
+## Use Cases
+
+### Amplify Gen 2 sandbox on LocalStack
+
+`ampx sandbox` is Amplify's per-developer dev loop: it synthesizes the backend with CDK, deploys it through CloudFormation, and redeploys on every file save. Everything `ampx` does goes through the AWS SDK for JavaScript v3, which resolves endpoints from the AWS profile, so `--profile localstack` is all it takes to deploy to LocalStack. `make sandbox` runs it in watch mode; edit `amplify/data/resource.ts` (for example, add `isDone: a.boolean()` to the `Todo` model) and the change is hotswapped into the running AppSync API in a few seconds.
+
+Two details make the flow work:
+
+- The CDK toolkit uploads assets with the bucket name in the hostname. LocalStack recognises those requests as S3 on `s3.localhost.localstack.cloud`, so the Makefile sets `AWS_ENDPOINT_URL_S3=http://s3.localhost.localstack.cloud:4566` for `ampx`.
+- LocalStack starts from a clean state, while the CDK toolkit keeps a hotswap cache under `.amplify/`. `scripts/reset-cdk-cache.mjs` drops that cache before a deploy, so a restarted LocalStack always gets a full deployment.
+
+### Pointing the Amplify client at LocalStack
+
+`amplify_outputs.json` carries the AppSync URL, so the data layer needs nothing extra. Cognito endpoints are derived from the Region inside the Amplify library and have no field in the outputs file, so [`src/amplify-config.ts`](src/amplify-config.ts) adds `userPoolEndpoint` and `identityPoolEndpoint` when `VITE_LOCALSTACK_ENDPOINT` is set. `make run` starts Vite in the `localstack` mode, which loads [`.env.localstack`](.env.localstack); plain `npm run dev` leaves the endpoints alone and the app talks to AWS.
+
+### Inspecting the deployment
+
+```shell
+lstk status                                                # every resource ampx created
+lstk aws cloudformation list-stacks --query 'StackSummaries[].StackName'
 lstk aws appsync list-graphql-apis
-lstk aws cognito-identity list-identity-pools --max-results 10
-npm run localstack:logs                        # follow requests as you click around
+lstk aws dynamodb scan --table-name <Todo-...>             # the todos, with createdAt/updatedAt/__typename
+lstk logs --follow                                         # requests as you click around
 ```
 
-### Tear down
+The [LocalStack Web App](https://app.localstack.cloud/inst/default/resources) shows the same resources in its Resource Browser.
 
-```bash
-npm run localstack:destroy   # ampx sandbox delete
-npm run localstack:stop      # stop the container
+## Cleanup
+
+Delete the sandbox stack and stop LocalStack:
+
+```shell
+make destroy
+make stop
 ```
 
-## How the app points at LocalStack
+## Summary
 
-`ampx` writes `amplify_outputs.json` with the AppSync URL already on LocalStack, so the data
-layer needs nothing extra. Cognito endpoints are derived from the region inside the Amplify
-library and cannot be expressed in that file, so
-[`src/amplify-config.ts`](src/amplify-config.ts) adds `userPoolEndpoint` and
-`identityPoolEndpoint` when `VITE_LOCALSTACK_ENDPOINT` is set. `npm run dev:localstack` runs
-Vite in the `localstack` mode, which loads [`.env.localstack`](.env.localstack); plain
-`npm run dev` leaves the endpoints alone and the app talks to AWS.
+This sample demonstrates how to:
 
-The deploy side uses the `localstack` AWS profile that `lstk setup aws` writes. CDK's asset
-publisher addresses S3 with the bucket name in the hostname, which LocalStack only recognises
-on `s3.localhost.localstack.cloud`, so the deploy scripts set
-`AWS_ENDPOINT_URL_S3=http://s3.localhost.localstack.cloud:4566` for `ampx`.
+- Deploy an Amplify Gen 2 backend (Cognito, AppSync, DynamoDB) to LocalStack with the standard `ampx sandbox` command and an AWS profile.
+- Run the Amplify sandbox dev loop, including hotswapped schema changes, against a local container.
+- Point the `aws-amplify` client library at LocalStack with a single override for the Cognito endpoints.
+- Test the deployed API end to end with guest credentials, locally and in CI.
 
-## Project layout
+## Learn more
 
-```
-amplify/
-  backend.ts               defineBackend({ auth, data })
-  auth/resource.ts         email sign-in (stock)
-  data/resource.ts         Todo model with allow.guest(), identityPool default auth mode (stock)
-src/
-  main.tsx                 renders the app
-  App.tsx                  todos with inline edit, "where this runs" panel
-  amplify-config.ts        Amplify.configure + the LocalStack endpoint toggle
-.env.localstack            VITE_LOCALSTACK_ENDPOINT for `vite --mode localstack`
-```
+- [Amplify Gen 2 documentation](https://docs.amplify.aws/)
+- [LocalStack Cognito](https://docs.localstack.cloud/aws/services/cognito-idp/), [AppSync](https://docs.localstack.cloud/aws/services/appsync/) and [DynamoDB](https://docs.localstack.cloud/aws/services/dynamodb/) documentation
+- [`lstk` CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/)
 
-## Scripts
+## Contributing
 
-| Script | What it runs |
-| --- | --- |
-| `localstack:start` | `LOCALSTACK_EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 lstk start --non-interactive` |
-| `localstack:bootstrap` | `lstk cdk bootstrap aws://000000000000/us-east-1` |
-| `localstack:deploy` | `AWS_ENDPOINT_URL_S3=... ampx sandbox --once --identifier local --profile localstack` (after dropping the CDK hotswap cache) |
-| `localstack:sandbox` | `AWS_ENDPOINT_URL_S3=... ampx sandbox --identifier local --profile localstack` (watch mode) |
-| `localstack:destroy` | `AWS_ENDPOINT_URL_S3=... ampx sandbox delete --identifier local --profile localstack --yes` |
-| `localstack:status` / `localstack:logs` / `localstack:stop` | `lstk status` / `lstk logs --follow` / `lstk stop` |
-| `dev:localstack` | `vite --mode localstack` |
-| `dev`, `build`, `lint`, `preview` | the usual Vite scripts |
+We appreciate your interest in contributing to our project and are always looking for new ways to improve the developer experience. We welcome feedback, bug reports, and even feature ideas from the community. Please refer to the [contributing file](CONTRIBUTING.md) for more details on how to get started.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.

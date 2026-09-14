@@ -1,0 +1,80 @@
+name: Run Integration Tests
+
+on:
+  push:
+    paths-ignore:
+      - ./*.md
+      - LICENSE
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # “At 00:00 on Sunday.”
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+    inputs:
+      localstack-image-tag:
+        description: LocalStack for AWS image tag to test against
+        default: latest
+        type: string
+
+jobs:
+  deploy-and-test:
+    name: Deploy the Amplify Gen 2 backend and run the end-to-end test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Defaults to `latest`; a repository variable can pin another tag.
+      LOCALSTACK_IMAGE_TAG: ${{ inputs.localstack-image-tag || vars.LOCALSTACK_IMAGE_TAG || 'latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g @localstack/lstk aws-cdk
+
+      - name: Start LocalStack
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          LOCALSTACK_DEBUG: 1
+        run: |
+          cat > ci-lstk.toml <<EOF
+          [[containers]]
+          type = "aws"
+          tag  = "${LOCALSTACK_IMAGE_TAG}"
+          port = "4566"
+          env  = []
+          EOF
+          lstk --config ci-lstk.toml start --type aws --non-interactive
+          lstk status
+
+      - name: Write the localstack AWS profile
+        run: |
+          lstk setup aws --non-interactive
+
+      - name: Deploy the backend
+        run: |
+          make deploy
+
+      - name: Run the end-to-end test
+        run: |
+          make test
+
+      - name: Build the frontend
+        run: |
+          npm run build
+
+      - name: Show LocalStack logs
+        if: always()
+        run: |
+          lstk logs
